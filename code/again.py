@@ -1,0 +1,284 @@
+import pygame
+import sys, os
+import random
+import time
+
+#stuff to do:
+# mkae the map look more like a nice city ( green grass, iamges of house, park, etc...)
+# make a legend explaing what the nodes, roads, and colors are
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+WIDTH, HEIGHT = 800, 800  # Screen dimensions
+ROWS, COLS = 20, 20  # Number of rows and columns
+NODE_RADIUS = 5  # Radius of each node circle
+GAP = 40  # Gap between nodes (20px node, 20px gap)
+START_POS = ('J', 10)  # Example starting position (row, column)
+DIRECTIONS = ['right', 'down', 'down', 'right', 'up']  # Example path
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+GRAY = (128, 128, 128)
+BLUE = (0, 0, 255)
+
+# Create the screen
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Visualized Tracker Map")
+
+# Font for labels
+font = pygame.font.SysFont(None, 24)
+title_font = pygame.font.SysFont(None, 48)
+
+# Load images
+image_paths = ["house.png", "building1.png", "building2.png", "park.png", "shop.png"]
+images = [pygame.image.load(os.path.join('data', img)) for img in image_paths]
+
+# Resize images to fit within a grid square
+image_size = GAP - 15
+images = [pygame.transform.scale(img, (image_size, image_size)) for img in images]
+
+car_image = pygame.image.load(os.path.join('data', 'car.png'))
+car_image = pygame.transform.scale(car_image, (GAP - 10, GAP - 10))
+
+# Function to convert (letter, number) to (x, y) grid coordinates
+def get_grid_position(pos):
+    row = ord(pos[0]) - 65  # Convert letter to index (A=0, B=1, ...)
+    col = pos[1] - 1  # Convert number to index (1=0, 2=1, ...)
+    x = col * GAP + 50
+    y = row * GAP + 50
+    return x, y
+
+# Function to draw the grid
+def draw_grid(traveled_path, traveled_lines, current_pos, highlight_next=False, next_positions=[]):
+    screen.fill(WHITE)
+    
+    # Draw title
+    title = title_font.render("Simple Map Graph", True, BLACK)
+    screen.blit(title, (WIDTH//2 - title.get_width()//2, 10))
+    
+    # Draw the alphabet (A to T) on the left side
+    for i in range(ROWS):
+        label = font.render(chr(65 + i), True, BLACK)
+        screen.blit(label, (10, i * GAP + 50))
+    
+    # Draw the numbers (1 to 20) on the top
+    for j in range(COLS):
+        label = font.render(str(j + 1), True, BLACK)
+        screen.blit(label, (j * GAP + 50, 10))
+    
+    # Draw the nodes and the connections
+    for i in range(ROWS):
+        for j in range(COLS):
+            x = j * GAP + 50
+            y = i * GAP + 50
+            pos = (65 + i, j + 1)
+
+            # Draw green grass squares
+            pygame.draw.rect(screen, GREEN, (x - NODE_RADIUS, y - NODE_RADIUS, GAP, GAP))
+            
+            # Place images in the grid squares
+            screen.blit(images[random.randint(0, 4)], (x - image_size//2, y - image_size//2))
+            
+            # Determine the color of the node
+            if (chr(pos[0]), pos[1]) in traveled_path:
+                color = GREEN
+            elif (chr(pos[0]), pos[1]) == current_pos:
+                color = RED
+            else:
+                color = BLACK
+            
+            # Draw the node
+            pygame.draw.circle(screen, color, (x, y), NODE_RADIUS)
+            
+            # Draw connections (up, down, left, right) and highlight traveled lines
+            if j < COLS - 1:  # Right connection possible
+                right_pos = (chr(pos[0]), pos[1] + 1)
+                if ((chr(pos[0]), pos[1]), right_pos) in traveled_lines:
+                    pygame.draw.line(screen, GREEN, (x + NODE_RADIUS, y), (x + GAP - NODE_RADIUS, y), 2)
+                elif highlight_next and right_pos in next_positions:
+                    pass
+                    #pygame.draw.line(screen, YELLOW, (x + NODE_RADIUS, y), (x + GAP - NODE_RADIUS, y), 2)
+                else:
+                    pygame.draw.line(screen, BLACK, (x + NODE_RADIUS, y), (x + GAP - NODE_RADIUS, y), 1)
+            
+            if i < ROWS - 1:  # Down connection
+                down_pos = (chr(pos[0] + 1), pos[1])
+                if ((chr(pos[0]), pos[1]), down_pos) in traveled_lines:
+                    pygame.draw.line(screen, GREEN, (x, y + NODE_RADIUS), (x, y + GAP - NODE_RADIUS), 2)
+                elif highlight_next and down_pos in next_positions:
+                    pass
+                    #pygame.draw.line(screen, YELLOW, (x, y + NODE_RADIUS), (x, y + GAP - NODE_RADIUS), 2)
+                else:
+                    pygame.draw.line(screen, BLACK, (x, y + NODE_RADIUS), (x, y + GAP - NODE_RADIUS), 1)
+
+            if j > 0:  # Left connection
+                left_pos = (chr(pos[0]), pos[1] - 1)
+                if ((chr(pos[0]), pos[1]), left_pos) in traveled_lines:
+                    pygame.draw.line(screen, GREEN, (x - GAP + NODE_RADIUS, y), (x - NODE_RADIUS, y), 2)
+                elif highlight_next and left_pos in next_positions:
+                    pass
+                    #pygame.draw.line(screen, YELLOW, (x - GAP + NODE_RADIUS, y), (x - NODE_RADIUS, y), 2)
+                else:
+                    pygame.draw.line(screen, BLACK, (x - GAP + NODE_RADIUS, y), (x - NODE_RADIUS, y), 1)
+            
+            if i > 0:  # Up connection
+                up_pos = (chr(pos[0] - 1), pos[1])
+                if ((chr(pos[0]), pos[1]), up_pos) in traveled_lines:
+                    pygame.draw.line(screen, GREEN, (x, y - GAP + NODE_RADIUS), (x, y - NODE_RADIUS), 2)
+                elif highlight_next and up_pos in next_positions:
+                    pass
+                    #pygame.draw.line(screen, YELLOW, (x, y - GAP + NODE_RADIUS), (x, y - NODE_RADIUS), 2)
+                else:
+                    pygame.draw.line(screen, BLACK, (x, y - GAP + NODE_RADIUS), (x, y - NODE_RADIUS), 1)
+    
+    for n in next_positions:
+        x, y = get_grid_position(current_pos) 
+        if n[1] != current_pos[1]:  
+            if n[1] > current_pos[1]:  #right happened   n[1] = col + 2
+                pygame.draw.line(screen, YELLOW, (x + NODE_RADIUS, y), (x + GAP - NODE_RADIUS, y), 2)
+            else:   #left happened  n[1] = col
+                x -= GAP
+                pygame.draw.line(screen, YELLOW, (x + NODE_RADIUS, y), (x + GAP - NODE_RADIUS, y), 2)
+        else:       # n[1] = col + 1
+            if ord(n[0]) > ord(current_pos[0]):    #down happened  ord(n[0]) = 65 + row + 1
+                pygame.draw.line(screen, YELLOW, (x, y + NODE_RADIUS), (x, y + GAP - NODE_RADIUS), 2)
+            else:          #up happened  ord(n[0]) = 65 + row - 1
+                pygame.draw.line(screen, YELLOW, (x, y - GAP + NODE_RADIUS), (x, y - NODE_RADIUS), 2)
+
+
+
+# Function to highlight the next possible paths and print those values
+def highlight_next_paths(traveled_path, current_pos, traveled_lines):
+    row, col = ord(current_pos[0]) - 65, current_pos[1] - 1
+    next_positions = []
+    
+    # Check possible moves
+    if row > 0:  # Up
+        next_positions.append((chr(65 + row - 1), col + 1))
+    if row < ROWS - 1:  # Down
+        next_positions.append((chr(65 + row + 1), col + 1))
+    if col > 0:  # Left
+        next_positions.append((chr(65 + row), col))
+    if col < COLS - 1:  # Right
+        next_positions.append((chr(65 + row), col + 2))
+    
+    # Draw the next possible paths and highlight the lines
+    draw_grid(traveled_path, traveled_lines, current_pos, highlight_next=True, next_positions=next_positions)
+    
+    # Print the next possible positions
+    print("Next possible positions:", next_positions)
+
+    # Pseudocode to activate the camera at the next possible nodes
+    # Simulate camera activation at each of the next possible nodes
+    activate_camera(next_positions)
+
+
+def activate_camera(positions):
+    # Pseudocode:
+    # 1. Capture the node position (e.g., A3, B5).
+    # 2. Activate the camera at this position, so it can run its code and then return if it has foudn the target
+    # 3. Optionally, log or print that the camera was activated.
+    for pos in positions:
+        print(f"Camera activated at node {pos}")
+
+    # Since all roads are equidistant on our map/graph, and assuming the target travels at constant same speed for all roads
+    # the target will arrive at each next_positions node at the same time as the other same instance next_position nodes
+    # so, given this, all the newly activated cameras would give a detection signal at the same time if they detected the target car (or a similar car)
+    # obviously, this would be solved, if the license plate detector always worked with 100% accuracy, but that it isn't realistic
+    # anyways, if we receive a signal at the same time, then we can determine which cameras have detected and which ones have not
+    # so, we can leave the detected cameras alone and let them run independently with all of this shared data (find_this folder)
+    # and luckily, we can immediately deactivate the non-detected cameras which is good obviously
+    print("Waiting for cameras' signals...")
+    pygame.time.wait(1000)   #wait for target to reach the next nodes
+    signals_from_cameras = [random.randint(0,1), random.randint(0,1), random.randint(0,1), random.randint(0,1)]   #example values for signals. 0 means not-detected, 1 means detected
+    for i in range(len(signals_from_cameras)):
+        x, y = get_grid_position(positions[i])
+        if signals_from_cameras[i] == 1:
+            print(f"Camera at node {positions[i]} detected target-like vehicle. Camera will continue searching independently")
+            pygame.draw.circle(screen, (0, 0, 255), (x, y), NODE_RADIUS)    #color the activated camera nodes blue
+        else:
+            print(f"Camera deactivated at node {positions[i]} because it did not detect target's vehicle")
+            pygame.draw.circle(screen, (128, 128, 128), (x, y), NODE_RADIUS)    #color the deactivated camera nodes grey
+
+# Function to move the red square (surface) smoothly along the traveled path
+def move_surface_smoothly(start_pos, directions):
+    traveled_path = set()
+    traveled_lines = set()
+    current_pos = start_pos
+    square_size = NODE_RADIUS * 2  # Size of the red square (surface)
+
+    clock = pygame.time.Clock()
+
+    for direction in directions:
+        x, y = get_grid_position(current_pos)
+        traveled_path.add(current_pos)
+        prev_pos = current_pos
+        
+        # Determine the next position based on direction
+        if direction == 'up' and ord(current_pos[0]) > 65:
+            next_pos = (chr(ord(current_pos[0]) - 1), current_pos[1])
+        elif direction == 'down' and ord(current_pos[0]) < 65 + ROWS - 1:
+            next_pos = (chr(ord(current_pos[0]) + 1), current_pos[1])
+        elif direction == 'left' and current_pos[1] > 1:
+            next_pos = (current_pos[0], current_pos[1] - 1)
+        elif direction == 'right' and current_pos[1] < COLS:
+            next_pos = (current_pos[0], current_pos[1] + 1)
+        else:
+            next_pos = current_pos
+        
+        next_x, next_y = get_grid_position(next_pos)
+        traveled_lines.add((prev_pos, next_pos))
+        traveled_lines.add((next_pos, prev_pos))
+
+        # Animate the movement of the red square
+        for i in range(10):
+            intermediate_x = x + (next_x - x) * i / 10
+            intermediate_y = y + (next_y - y) * i / 10
+            
+            draw_grid(traveled_path, traveled_lines, current_pos, highlight_next=False, next_positions=[])
+            pygame.draw.rect(screen, RED, (intermediate_x - square_size // 2, intermediate_y - square_size // 2, square_size, square_size))
+            pygame.display.flip()
+            clock.tick(20)  # Adjust the speed of movement
+        
+        current_pos = next_pos
+
+    # Highlight the next possible paths
+    highlight_next_paths(traveled_path, current_pos, traveled_lines)
+
+def main_follow(start_pos, directions):
+    # Main loop
+    running = True
+    paused = False
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:  # Press SPACE to unpause if needed
+                    paused = False
+
+        if not paused:        #For testing purposes only. If not for testing purposes, then delete and un-indent the next 11 lines
+            move_surface_smoothly(start_pos, directions)
+            #All info will be sent to user and maybe police
+
+            paused = True
+
+            # Update the display
+            pygame.display.flip()
+
+            # The next 3 lines are commented only for testing purposes. If not for testing, remove the comment hastag
+            #print("Deactivating this camera soon...")
+            #print("The other activated cameras will send their info/videos to user and maybe police...")
+            #running = False
+
+    # Quit Pygame
+    pygame.quit()
+    sys.exit()
+
+main_follow(START_POS, DIRECTIONS)
