@@ -22,12 +22,12 @@ DIRECTIONS = ['right', 'down', 'down', 'right', 'up']  # Example path
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-GRASS_GREEN = (30, 200, 0)
+GREEN = (0, 150, 0)
+GRASS_GREEN = (124, 252, 0)
 YELLOW = (255, 255, 0)
 GRAY = (128, 128, 128)
 BLUE = (0, 0, 255)
-SKY_BLUE = (30, 0, 200)
+SKY_BLUE = (135, 206, 235)
 
 # Create the screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -36,6 +36,23 @@ pygame.display.set_caption("Visualized Tracker Map")
 # Font for labels
 font = pygame.font.SysFont(None, 24)
 title_font = pygame.font.SysFont(None, 48)
+
+global images_on
+images_on = True
+
+# Load images
+image_paths = ["house.png", "building1.png", "building2.png", "park.png", "shop.png"]
+images = [pygame.image.load(os.path.join('data', img)) for img in image_paths]
+
+# Resize images to fit within a grid square
+image_sizes = [GAP - 10, GAP - 15, GAP - 15, GAP - 10, GAP - 10]
+images = [pygame.transform.scale(img, (image_sizes[i], image_sizes[i])) for i, img in enumerate(images)]
+
+car_image = pygame.image.load(os.path.join('data', 'car.png'))
+car_image = pygame.transform.scale(car_image, (GAP - 10, GAP - 10))
+
+road_image = pygame.image.load(os.path.join('data', 'road.png'))
+road_image = pygame.transform.scale(road_image, (GAP, NODE_RADIUS * 2))
 
 # Function to convert (letter, number) to (x, y) grid coordinates
 def get_grid_position(pos):
@@ -67,10 +84,10 @@ def draw_grid(traveled_path, traveled_lines, current_pos, highlight_next=False, 
             pos = (65 + i, j + 1)
 
             # Draw green grass squares
-            if j != 19:
+            if j != COLS-1:
                 pygame.draw.rect(screen, GRASS_GREEN, (x, y, GAP, GAP))
-
-            #BLIT in the other roads, car, and houses for asthetics  ---------------------------------------------
+                if images_on:
+                    screen.blit(images[j % len(images)], (x + image_sizes[j % len(images)]//4, y + image_sizes[j % len(images)]//4))
             
             # Determine the color of the node
             if (chr(pos[0]), pos[1]) in traveled_path:
@@ -239,6 +256,8 @@ def move_surface_smoothly(start_pos, directions):
             
             draw_grid(traveled_path, traveled_lines, current_pos, highlight_next=False, next_positions=[])
             pygame.draw.rect(screen, RED, (intermediate_x - square_size // 2, intermediate_y - square_size // 2, square_size, square_size))
+            if images_on:
+                screen.blit(car_image, (intermediate_x - square_size // 2 - 10, intermediate_y - square_size // 2 - 8))
             pygame.display.flip()
             clock.tick(20)  # Adjust the speed of movement
         

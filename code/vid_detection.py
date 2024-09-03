@@ -23,8 +23,8 @@ if first_camera:
             start = True
 else:
    #retrieve the first camera's starting coords from the Camera SDK & ONVIF
-   print('not first camera.....')
-   first_camera_starting_coords = (37.7749, -122.4194)  #exampel values, delete leter
+   print('not first camera.....get data from Camera SDK & ONVIF')
+   first_camera_starting_coords = (37.7749, -122.4194)  #exampel values, change leter
 
 # Initialize video capture. 0 for computer webcam. 
 cap = cv2.VideoCapture('data/yes_car.mp4')    #For live feed, then give the IPaddress of the security camera(s)
