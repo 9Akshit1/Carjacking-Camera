@@ -4,9 +4,6 @@ import shutil
 import os
 import requests
 
-# Instead of using google maps API, I will just make a "map" (list) and use pytame to display it in a user-friendly way. 
-# This will also make it easier for users to udnerstand my code.
-
 gmaps = googlemaps.Client(key='AIzaSyAgDXQNFfqeb5EjkF0f8BzdkDPebQCkj-A')
 
 def snap_to_roads(api_key, path):

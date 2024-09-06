@@ -3,10 +3,6 @@ import sys, os
 import random
 import time
 
-#stuff to do:
-# mkae the map look more like a nice city ( green grass, iamges of house, park, etc...)
-# make a legend explaing what the nodes, roads, and colors are
-
 # Initialize Pygame
 pygame.init()
 
@@ -36,9 +32,6 @@ pygame.display.set_caption("Visualized Tracker Map")
 # Font for labels
 font = pygame.font.SysFont(None, 24)
 title_font = pygame.font.SysFont(None, 48)
-
-global images_on
-images_on = True
 
 # Load images
 image_paths = ["house.png", "building1.png", "building2.png", "park.png", "shop.png"]
@@ -270,6 +263,12 @@ def main_follow(start_pos, directions):
     # Main loop
     running = True
     paused = False
+    global images_on
+    user_input = input("Images on? (True/False): ").lower()
+    if user_input == 'true':
+        images_on = True
+    elif user_input == 'false':
+        images_on = False
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -296,4 +295,4 @@ def main_follow(start_pos, directions):
     pygame.quit()
     sys.exit()
 
-main_follow(START_POS, DIRECTIONS)
+main_follow(START_POS, DIRECTIONS)    #turn off when not testing

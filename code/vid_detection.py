@@ -8,7 +8,7 @@ import easyocr, imutils
 from matplotlib import pyplot as plt
 
 global first_camera_starting_coords 
-first_camera = True     #delete later     
+first_camera = True     #this wil be given by user or the other cameras in the sequence     
 if first_camera:
     lat = float(input('Enter the latitude of your camera: '))   # for example, 37.7749
     long = float(input('Enter the longitude of your camera: '))  # for example, -122.4194
@@ -27,8 +27,8 @@ else:
    first_camera_starting_coords = (37.7749, -122.4194)  #exampel values, change leter
 
 # Initialize video capture. 0 for computer webcam. 
-cap = cv2.VideoCapture('data/yes_car.mp4')    #For live feed, then give the IPaddress of the security camera(s)
-# or cars.mp4, or no_car.mp4.
+cap = cv2.VideoCapture('data/cars.mp4')    #For live feed, then give the IPaddress of the security camera(s)
+# or yes_car.mp4, or no_car.mp4.
 # Create a folder to save frames
 output_folder = 'frames'
 if not os.path.exists(output_folder):
@@ -257,12 +257,12 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
     
     run = True
     v = 0
-    vehicles = [cars]  #ignore buses, bikes fro now. use either cars or cars1
+    vehicles = [cars]  # Use either cars or cars1 depending on accuracy of cars1 (right now not very good, but in the future, it will be a better way)
     while run:
         for (x, y, w, h) in vehicles[v]:
             prob = 0
             car_crop = forground[y:y+h, x:x+w]      #use frame or forgorund dependign on video ------------------------
-            
+
             # Check color
             color_name_detected, license_plate = detect_all(forground, car_crop, x, y, w, h, frame, frameCopy, (255, 0, 0))
             
@@ -330,7 +330,7 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
 def detect_all(forground, car_crop, x, y, w, h, frame, frameCopy, color):
     # Crop the region inside the rectangle
     #car_crop = frame[y:y + h, x:x + w]    #use frame or forground depending on video ---------------------------------
-    cv2.imshow('car_crop', car_crop)     #colored car with black bg
+    #cv2.imshow('car_crop', car_crop)     #colored car with black bg
     
     # Get dominant color
     dominant_color, _ = get_dominant_color(car_crop)       #works well on bright obvious colors (yellow, white, red)
@@ -359,7 +359,7 @@ kernel2 = None
 # Load stored car information
 stored_cars = load_car_info(folder='find_this')     #all stolen cars
 if first_camera:
-    user_car_path = 'user_car_images1'        #for testing purposes, use user_car_images with cars.mp4, use user_car_images1 with yes_car.mp4 and no_car.mp4
+    user_car_path = 'user_car_images'        #for testing purposes, use user_car_images with cars.mp4, use user_car_images1 with yes_car.mp4 and no_car.mp4
     user_car_images = []
     for image_name in os.listdir(user_car_path):
         if image_name.endswith(".jpg") or image_name.endswith(".png") or image_name.endswith(".PNG"):
