@@ -1,8 +1,7 @@
 import cv2
 import time
 import numpy as np
-import os
-import json
+import os, json
 from sklearn.cluster import KMeans
 import easyocr, imutils
 from matplotlib import pyplot as plt
@@ -21,6 +20,7 @@ if first_camera:
         start_now = input('Do you want to start now? (y/n) ')     
         if start_now == 'y':
             start = True
+    final_directions = []
 else:
    #retrieve the first camera's starting coords from the Camera SDK & ONVIF
    print('not first camera.....get data from Camera SDK & ONVIF')
@@ -35,7 +35,6 @@ if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 frame_count = 0
 
-#use trained cars XML classifiers
 car_classifier = cv2.CascadeClassifier('data/haarcascade_cars.xml')
 body_classifier = cv2.CascadeClassifier('data/haarcascade_fullbody.xml')
 bus_classifier = cv2.CascadeClassifier('data/Bus_front.xml')
@@ -43,25 +42,20 @@ bike_classifier = cv2.CascadeClassifier('data/two_wheeler.xml')
 Lplate_classifier = cv2.CascadeClassifier('data/haarcascade_russian_plate_number.xml')
 
 def get_dominant_color(image, k=3):
-    # Reshape the image to be a list of pixels
     pixels = image.reshape(-1, 3).astype(np.float32)
 
-    # Perform k-means clustering
     kmeans = KMeans(n_clusters=k)
     kmeans.fit(pixels)
 
-    # Get the colors and their percentages
     colors = kmeans.cluster_centers_
     labels = kmeans.labels_
     counts = np.bincount(labels)
     percentages = counts / len(labels)
 
-    # Sort colors by percentage
     sorted_indices = np.argsort(percentages)[::-1]
     sorted_colors = colors[sorted_indices]
     sorted_percentages = percentages[sorted_indices]
 
-    # Return the most dominant color (in BGR format) and its percentage
     main_color = sorted_colors[0].astype(int)
     print(sorted_colors)
     print('First color:', color_name(main_color))
@@ -72,10 +66,8 @@ def get_dominant_color(image, k=3):
     return sorted_colors[0].astype(int), sorted_percentages[0]     #if dominant color is not black
 
 def color_name(bgr_color):
-    # Convert BGR to HSV
     hsv_color = cv2.cvtColor(np.uint8([[bgr_color]]), cv2.COLOR_BGR2HSV)[0][0]
 
-    # Define color ranges
     color_ranges = {
         "Red": [((0, 100, 100), (10, 255, 255)), ((160, 100, 100), (180, 255, 255))],
         "Orange": [((11, 100, 100), (25, 255, 255))],
@@ -88,7 +80,6 @@ def color_name(bgr_color):
         "Gray": [((0, 0, 31), (180, 30, 199))]
     }
     
-    # Check which range the color falls into
     for name, ranges in color_ranges.items():
         for start, end in ranges:
             if np.all(hsv_color >= start) and np.all(hsv_color <= end):
@@ -122,21 +113,18 @@ def detect_license_plate(img):
     if not plate_detected:
         return None
     else:
-        # Resize and prepare the image
         img = cv2.resize(img, (620, 480))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         gray = cv2.bilateralFilter(gray, 13, 15, 15)
 
-        # Perform edge detection
+        # edge detection
         edged = cv2.Canny(gray, 30, 200)
 
-        # Find contours
         contours = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours = imutils.grab_contours(contours)
         contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
         screenCnt = None
 
-        # Loop over contours to find the one that looks like a license plate
         for c in contours:
             peri = cv2.arcLength(c, True)
             approx = cv2.approxPolyDP(c, 0.018 * peri, True)
@@ -185,18 +173,15 @@ def store_car_info(color, license_plate, images, starting_coords, final_directio
     if not os.path.exists(folder):
         os.makedirs(folder)
     
-    # Generate a unique identifier for the car
     car_id = f"{color}_{license_plate}"    #could cause some confusion when tryign to match cars if color is unknown and license palte is None
     car_folder = os.path.join(folder, car_id)
     
     if not os.path.exists(car_folder):
         os.makedirs(car_folder)
     
-    # Save the image
     for i, image in enumerate(images):
         cv2.imwrite(os.path.join(car_folder, f"car_image{i}.jpg"), image)
     
-    # Save the metadata
     metadata = {
         "color": color,
         "license_plate": license_plate,
@@ -213,16 +198,13 @@ def load_car_info(folder="find_this"):
         print(f"Folder {folder} does not exist.")
         return car_infos
 
-    # Iterate over all car folders
     for car_folder in os.listdir(folder):
         car_path = os.path.join(folder, car_folder)
         if os.path.isdir(car_path):
-            # Load metadata
             metadata_path = os.path.join(car_path, "metadata.json")
             with open(metadata_path, "r") as f:
                 metadata = json.load(f)
-            
-            # Load images
+        
             images = []
             for image_name in os.listdir(car_path):
                 if image_name.endswith(".jpg"):
@@ -241,8 +223,7 @@ def load_car_info(folder="find_this"):
     
     return car_infos
 
-def detect_specific_car(frame, fgmask, forground, target_color, target_license_plate, target_images, threshold=0.8):
-    # Detect cars in the frame (using your existing car detection code)
+def detect_specific_car(frame, fgmask, forground, target_color, target_license_plate, target_images, threshold=0.52):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     cars = car_classifier.detectMultiScale(gray, 1.4, 2)
     buses = bus_classifier.detectMultiScale(gray, 1.4, 2)
@@ -263,7 +244,6 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
             prob = 0
             car_crop = forground[y:y+h, x:x+w]      #use frame or forgorund dependign on video ------------------------
 
-            # Check color
             color_name_detected, license_plate = detect_all(forground, car_crop, x, y, w, h, frame, frameCopy, (255, 0, 0))
             
             if color_name_detected.lower() == target_color.lower():
@@ -279,7 +259,6 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
                                 prob += 0.5/num - diff
                         print('License plate accepted')
                 
-                # Compare with target images
                 average_vals = []
                 #cv2.imwrite("car_image.jpg", car_crop)
                 for target_image in target_images:
@@ -288,7 +267,7 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
                         print(f"Channel mismatch: car_crop has {car_crop.shape[-1]} channels, target_image has {target_image.shape[-1]} channels")
                         continue
                     
-                    # Resize the target image if it's larger than the car_crop
+                    # Resize target image if it's larger than the car_crop
                     if car_crop.shape[0] < target_image.shape[0] or car_crop.shape[1] < target_image.shape[1]:
                         scale_factor = min(car_crop.shape[0] / target_image.shape[0], car_crop.shape[1] / target_image.shape[1])
                         resized_target_image = cv2.resize(target_image, (0, 0), fx=scale_factor, fy=scale_factor)
@@ -300,7 +279,6 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
                     result1 = cv2.matchTemplate(car_crop, resized_target_image, cv2.TM_CCOEFF_NORMED)
                     result2 = cv2.matchTemplate(frame[y:y+h, x:x+w], resized_target_image, cv2.TM_CCOEFF_NORMED)
 
-                    # Debugging output to ensure results are valid
                     if result1.size == 0 or result2.size == 0:
                         print(f"MatchTemplate failed: result1 or result2 is empty.")
                         continue
@@ -326,37 +304,101 @@ def detect_specific_car(frame, fgmask, forground, target_color, target_license_p
     
     return False, None
 
-#gotta change soem stuff in this function
 def detect_all(forground, car_crop, x, y, w, h, frame, frameCopy, color):
-    # Crop the region inside the rectangle
     #car_crop = frame[y:y + h, x:x + w]    #use frame or forground depending on video ---------------------------------
     #cv2.imshow('car_crop', car_crop)     #colored car with black bg
     
-    # Get dominant color
     dominant_color, _ = get_dominant_color(car_crop)       #works well on bright obvious colors (yellow, white, red)
     color_name_detected = color_name(dominant_color) 
     #time.sleep(1)   #for testing purposes
     
-    # Detect license plate
     license_plate = detect_license_plate(car_crop)      #very slow for some reason. likely not detected tho because difficult to get license plate unless very close/clear image
     
     if license_plate:        #change it to when the camera detects the car jacking, then it will store car info
         # Store car info
         store_car_info(color_name_detected, license_plate[0], [frame[y:y + h, x:x + w], car_crop], first_camera_starting_coords, [])   #(37.7749, -122.4194) woudl eb repalced by the first camera's actual coordiantes
     
-    # Draw rectangle and display info
     cv2.rectangle(frameCopy, (x, y), (x+w, y+h), color, 2)
     cv2.putText(frameCopy, f"{color_name_detected}", (x, y-30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
     if license_plate:
         cv2.putText(frameCopy, f"{license_plate[0]}", (x, y-60), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
     return color_name_detected, license_plate
 
+def after_detecting_specific_car(found, bbox, car_positions, frameCopy, directions, starting_coords, final_directions):
+    if found:  
+        x, y, w, h = bbox
+        car_center = (x + w // 2, y + h // 2)
+        car_positions.append(car_center)
+
+        cv2.rectangle(frameCopy, (x, y), (x+w, y+h), (0, 0, 0), 3)
+        cv2.putText(frameCopy, "User's Car Found", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+        if len(car_positions) > 1:    # already has positions in it
+            delta_x = car_center[0] - car_positions[-2][0]
+            delta_y = car_center[1] - car_positions[-2][1]
+
+            if abs(delta_x) > abs(delta_y):  # Movement is more horizontal
+                if delta_x > 0:
+                    direction = "right"
+                elif delta_x < 0:
+                    direction = "left"
+            else:  # Movement is more vertical
+                #if delta_y > 0:   #ignore right now, because we position camera to make it so that car is always going forward/away from it
+                    #direction = "down"   #ignore right now
+                #elif delta_y < 0:      #ignore right now
+                direction = "up"
+            directions.append(direction)
+
+    if len(car_positions) > 1 and len(directions) >= 1:
+        last_position = car_positions[-1]
+        margin_distance = 100
+        if (last_position[0] < margin_distance and directions[-1] == 'left'):  # close to Left edge
+            final_directions.append('left')
+            print("Car went left.")
+            car_positions, directions = call_user(car_positions, directions, starting_coords, final_directions)
+            return car_positions, frameCopy, directions, final_directions, True
+        elif (last_position[0] > (frame_width - margin_distance) and directions[-1] == 'right'):  # close to Right edge 
+            final_directions.append('right')
+            print("Car went right.")
+            car_positions, directions = call_user(car_positions, directions, starting_coords, final_directions)
+            return car_positions, frameCopy, directions, final_directions, True
+        elif (last_position[1] < margin_distance and directions[-1] == 'up'):  # close to  Top edge
+            final_directions.append('up')
+            print("Car went straight (up).")
+            car_positions, directions = call_user(car_positions, directions, starting_coords, final_directions)
+            return car_positions, frameCopy, directions, final_directions, True
+        elif (last_position[1] > (frame_height - margin_distance) and directions[-1] == 'down'):  # close to  Bottom edge
+            final_directions.append('down')
+            print("Car went straight (down).")
+            car_positions, directions = call_user(car_positions, directions, starting_coords, final_directions)
+            return car_positions, frameCopy, directions, final_directions, True
+            
+            # You could also check the sequence of angles (need to add some code earlier then using deltax and delta y)
+            # to determine if the car made a U-turn or other complex maneuvers
+    return car_positions, frameCopy, directions, final_directions, False
+
+def call_user(car_positions, directions, starting_coords, final_directions):
+    # Optional: Reset tracking if car exits frame
+    car_positions.clear()
+    directions.clear()
+
+    user_response = input("Calling/messaging user about car's disappearance")   
+    # Would have to be changed if used IRL, because we want to time user_resposne so we can check if they are not typing
+    # anything. We would likely use threads or something here instead, but for simplicity, I used normal input field.
+
+    if not user_response:    #if user doesn't respond (ex:sleeping) within 5 mins or if user responds and says that it's a carjacking, then 
+        #from IRL_follow import follow_car   #normally this is what would be used IRL, but due to current camera limitations, we need use fake_follow.py instead
+        #follow_car(starting_coords, final_directions)
+
+        from fake_follow import main_follow
+        main_follow(('J', 10), ['right', 'down', 'down', 'right', 'up'])    #it will sue the default exampel values. delete later
+    
+    return car_positions, directions
 
 backgroundObject = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=100, detectShadows=True)
 kernel1 = np.ones((3, 3), np.uint8)
 kernel2 = None
 
-# Load stored car information
 stored_cars = load_car_info(folder='find_this')     #all stolen cars
 if first_camera:
     user_car_path = 'user_car_images'        #for testing purposes, use user_car_images with cars.mp4, use user_car_images1 with yes_car.mp4 and no_car.mp4
@@ -372,18 +414,14 @@ frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 center_point = (frame_width // 2, frame_height // 2)
 
-# List to store direction vectors and previous car positions
 directions = []
 car_positions = []
 
-# Loop once video is successfully loaded
 while cap.isOpened():
     time.sleep(0.01)
-    # Read first frame
     ret, frame = cap.read()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    # Pass frame to our car classifier
     cars = car_classifier.detectMultiScale(gray, 1.4, 2)
     bodies = body_classifier.detectMultiScale(gray, 1.4, 2)
     buses = bus_classifier.detectMultiScale(gray, 1.4, 2)
@@ -417,60 +455,8 @@ while cap.isOpened():
 
     # Iterate over stored cars and check for matches
     if first_camera:
-        # Call the detect_specific_car function
         found, bbox = detect_specific_car(frame, fgmask, forground, user_car_color, user_car_license_plate, user_car_images)
-        if found:  
-            x, y, w, h = bbox
-            car_center = (x + w // 2, y + h // 2)
-            car_positions.append(car_center)
-
-            cv2.rectangle(frameCopy, (x, y), (x+w, y+h), (0, 0, 0), 3)
-            cv2.putText(frameCopy, "User's Car Found", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-
-            # Calculate the angle relative to the fixed center point
-            delta_x = car_center[0] - center_point[0]
-            delta_y = car_center[1] - center_point[1]
-            angle = np.arctan2(delta_y, delta_x) * 180 / np.pi
-            directions.append(angle)
-        else:    # possibly stolen meanign its out of the frame, but not trustworhty yet because accuracy of detection rn is bad
-            # Check if the car had exited the frame
-            if len(car_positions) > 1:
-                last_position = car_positions[-1]
-                if (last_position[0] < 0 or last_position[0] > frame_width or 
-                    last_position[1] < 0 or last_position[1] > frame_height):
-                    
-                    final_directions = []
-                    print("Car exited the frame.")
-
-                    # Determine direction based on last known angle
-                    last_angle = directions[-1]
-
-                    if -45 <= last_angle <= 45:
-                        final_directions.append('Right')
-                        print("Car went right.")
-                    elif 45 < last_angle <= 135:
-                        final_directions.append('Up')
-                        print("Car went straight (up).")
-                    elif -135 <= last_angle < -45:
-                        final_directions.append('Down')
-                        print("Car went straight (down).")
-                    elif last_angle > 135 or last_angle < -135:
-                        final_directions.append('Left')
-                        print("Car went left.")
-                    
-                    # You could also check the sequence of angles to determine if the car made a U-turn or other complex maneuvers
-
-                    # Optional: Reset tracking if car exits frame
-                    car_positions.clear()
-                    directions.clear()
-
-                    print("Calling/messaging user aboot car's disappearance")   #call/message the user using APIs
-                    #if user doesn't respond (ex:sleeping) within 5 mins or if user responds and says that it's a carjacking, then 
-                        #from fake_follow import follow_car
-                        #follow_car(first_camera_starting_coords, final_directions)    #directions is an empty list
-                        #break
-                else:
-                    print('The car either telelported away, ceased to exist, or its a false alarm.')
+        car_positions, frameCopy, directions, final_directions, a_break = after_detecting_specific_car(found, bbox, car_positions, frameCopy, directions, first_camera_starting_coords, final_directions)
     else:
         for car_info in stored_cars:        
             target_color = car_info["color"]
@@ -479,83 +465,33 @@ while cap.isOpened():
             starting_coords = car_info["starting_coords"]
             final_directions = car_info["final_directions"]
 
-            # Call the detect_specific_car function
+            # Basically the same thing as the if part
             found, bbox = detect_specific_car(frame, fgmask, forground, target_color, target_license_plate, target_images)
+            car_positions, frameCopy, directions, final_directions, a_break = after_detecting_specific_car(found, bbox, car_positions, frameCopy, directions, starting_coords, final_directions)
 
-            if found:
-                x, y, w, h = bbox
-                car_center = (x + w // 2, y + h // 2)
-                car_positions.append(car_center)
-
-                cv2.rectangle(frameCopy, (x, y), (x+w, y+h), (0, 255, 0), 3)
-                cv2.putText(frameCopy, "Target Found", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-
-                # Calculate the angle relative to the fixed center point
-                delta_x = car_center[0] - center_point[0]
-                delta_y = car_center[1] - center_point[1]
-                angle = np.arctan2(delta_y, delta_x) * 180 / np.pi
-                directions.append(angle)
-
-            # Check if the car has exited the frame
-            if len(car_positions) > 1:
-                last_position = car_positions[-1]
-                if (last_position[0] < 0 or last_position[0] > frame_width or 
-                    last_position[1] < 0 or last_position[1] > frame_height):
-                    
-                    print("Car exited the frame.")
-
-                    # Determine direction based on last known angle
-                    last_angle = directions[-1]
-
-                    if -45 <= last_angle <= 45:
-                        final_directions.append('Right')
-                        print("Car went right.")
-                    elif 45 < last_angle <= 135:
-                        final_directions.append('Up')
-                        print("Car went straight (up).")
-                    elif -135 <= last_angle < -45:
-                        final_directions.append('Down')
-                        print("Car went straight (down).")
-                    elif last_angle > 135 or last_angle < -135:
-                        final_directions.append('Left')
-                        print("Car went left.")
-                    
-                    # You could also check the sequence of angles to determine if the car made a U-turn or other complex maneuvers
-
-                    # Optional: Reset tracking if car exits frame
-                    car_positions.clear()
-                    directions.clear()
-
-                    from IRL_follow import follow_car
-                    follow_car(starting_coords, final_directions)
-                    break
-                else:
-                    print('The car either telelported away, ceased to exist, or its a false alarm.')
-
+    if a_break:
+        break
+    
     cv2.imshow('Detecting...', frameCopy)
 
-    # Save the frame to the output folder
     frame_filename = os.path.join(output_folder, f'frame_{frame_count:04d}.jpg')
-    cv2.imwrite(frame_filename, frame)
+    cv2.imwrite(frame_filename, frameCopy)
     frame_count += 1
 
-    if cv2.waitKey(1) == ord('q'): #13 is the Enter Key
+    if cv2.waitKey(1) == ord('q'): 
         break
 
 print('DONE')
 cap.release()
 cv2.destroyAllWindows()
 
-# Folder containing frames
 frame_folder = 'frames'
 frames = [f for f in sorted(os.listdir(frame_folder)) if f.endswith('.jpg')]
 
-# Get the width and height of the frames
 frame_path = os.path.join(frame_folder, frames[0])
 frame = cv2.imread(frame_path)
 height, width, layers = frame.shape
 
-# Define the codec and create VideoWriter object
 output_video = cv2.VideoWriter('output_video.mp4', cv2.VideoWriter_fourcc(*'XVID'), 20.0, (width, height))
 
 for frame in frames:

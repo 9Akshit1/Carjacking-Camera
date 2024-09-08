@@ -39,8 +39,7 @@ def get_next_intersection(api_key, current_position, direction, num_points=5, di
     
     snapped_points = snap_to_roads(api_key, path)
     
-    # Assuming the last snapped point is close to the next intersection
-    next_intersection = snapped_points[-1]
+    next_intersection = snapped_points[-1]  # Assuming the last snapped point is close to the next intersection
     
     return next_intersection
 
@@ -65,10 +64,8 @@ def activate_camera(ip, port, username, password, find_this_folder, prev_coordin
     #send_previous_coordinates(ip, port, username, password, prev_coordinates)     # Through an HTTPS requests
 
 def follow_car(starting_coords, final_directions):
-    # Initialize current position
     current_position = starting_coords
 
-    # Track the positions of the car
     car_positions = [current_position]
 
     for direction in final_directions:
@@ -88,7 +85,6 @@ def follow_car(starting_coords, final_directions):
     password = "12345678910"   
     find_this_folder = "find_this"    # I know its unnecessary to have this here, but this is for formatting adn future editors' purposes
 
-    # Check each position
     for i in range(len(next_camera_coords_list)):
         print(f"Activating camera. IP is {next_camera_ips_list[i]}")
         prev_coordinates = previous_cameras_coords.copy()
